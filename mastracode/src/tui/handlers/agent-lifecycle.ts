@@ -9,6 +9,7 @@ import { JudgeDisplayComponent } from '../components/judge-display.js';
 import { GradientAnimator } from '../components/obi-loader.js';
 import { showInfo } from '../display.js';
 import { pruneChatContainer } from '../prune-chat.js';
+import { clearPendingUserMessages } from '../render-messages.js';
 import { BOX_INDENT, theme } from '../theme.js';
 
 import type { EventHandlerContext } from './types.js';
@@ -138,6 +139,7 @@ export function handleAgentAborted(ctx: EventHandlerContext): void {
   state.pendingFollowUpMessages = [];
   state.pendingQueuedActions = [];
   state.pendingSlashCommands = [];
+  clearPendingUserMessages(state);
   state.pendingTools.clear();
   pruneChatContainer(state);
   ctx.updateStatusLine();
@@ -159,6 +161,7 @@ export function handleAgentError(ctx: EventHandlerContext): void {
   state.pendingFollowUpMessages = [];
   state.pendingQueuedActions = [];
   state.pendingSlashCommands = [];
+  clearPendingUserMessages(state);
   state.pendingTools.clear();
   pruneChatContainer(state);
   ctx.updateStatusLine();
