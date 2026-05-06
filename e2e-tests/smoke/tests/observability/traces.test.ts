@@ -85,11 +85,14 @@ describe('observability traces', () => {
       expect(page0.data.spans).toHaveLength(2);
       expect(page1.data.spans.length).toBeGreaterThan(0);
 
-      // Pages should return different spans
-      const ids0 = page0.data.spans.map((s: any) => s.spanId);
-      const ids1 = page1.data.spans.map((s: any) => s.spanId);
-      const overlap = ids0.filter((id: string) => ids1.includes(id));
-      expect(overlap).toHaveLength(0);
+      // The two pages should advance through the result set: together they
+      // must return at least one span we hadn't seen on page 0. We can't
+      // assert zero overlap because other tests may emit new spans between
+      // these two fetches, which shifts the descending-by-startedAt ordering
+      // and causes a single duplicate.
+      const ids0 = new Set(page0.data.spans.map((s: any) => s.spanId));
+      const newOnPage1 = page1.data.spans.filter((s: any) => !ids0.has(s.spanId));
+      expect(newOnPage1.length).toBeGreaterThan(0);
     });
   });
 
