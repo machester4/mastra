@@ -214,6 +214,8 @@ describe('createToolCallStep tool approval workflow', () => {
 
     const executePromise = toolCallStep.execute(makeExecuteParams({ inputData }));
 
+    await new Promise(resolve => setImmediate(resolve));
+
     expect(controller.enqueue).toHaveBeenCalledWith(
       expect.objectContaining({
         type: 'tool-call-approval',
@@ -226,8 +228,6 @@ describe('createToolCallStep tool approval workflow', () => {
         }),
       }),
     );
-
-    await new Promise(resolve => setImmediate(resolve));
 
     expect(suspend).toHaveBeenCalledWith(
       {
@@ -258,6 +258,23 @@ describe('createToolCallStep tool approval workflow', () => {
       result: 'Tool call was not approved by the user',
       ...inputData,
     });
+    expectNoToolExecution();
+  });
+
+  it('should honor declined approval even if needsApprovalFn later returns false', async () => {
+    const needsApprovalFn = vi.fn().mockReturnValue(false);
+    tools['test-tool'].requireApproval = false;
+    (tools['test-tool'] as any).needsApprovalFn = needsApprovalFn;
+    const inputData = makeInputData();
+    const resumeData = { approved: false };
+
+    const result = await toolCallStep.execute(makeExecuteParams({ inputData, resumeData }));
+
+    expect(result).toEqual({
+      result: 'Tool call was not approved by the user',
+      ...inputData,
+    });
+    expect(needsApprovalFn).not.toHaveBeenCalled();
     expectNoToolExecution();
   });
 
@@ -369,13 +386,13 @@ describe('createToolCallStep needsApprovalFn enriched context', () => {
     await expect(Promise.race([executePromise, Promise.resolve('completed')])).resolves.toBe('completed');
   });
 
-  it('should skip approval when needsApprovalFn returns false', async () => {
+  it('should skip approval when only needsApprovalFn returns false', async () => {
     const needsApprovalFn = vi.fn().mockReturnValue(false);
     const toolResult = { deleted: true };
     const tools = {
       'ctx-tool': {
         execute: vi.fn().mockResolvedValue(toolResult),
-        requireApproval: true,
+        requireApproval: false,
         needsApprovalFn,
       },
     };
@@ -396,6 +413,66 @@ describe('createToolCallStep needsApprovalFn enriched context', () => {
       result: toolResult,
       ...makeInputData(),
     });
+  });
+
+  it('should require approval when requireApproval is true and needsApprovalFn returns false', async () => {
+    const needsApprovalFn = vi.fn().mockReturnValue(false);
+    const tools = {
+      'ctx-tool': {
+        execute: vi.fn(),
+        requireApproval: true,
+        needsApprovalFn,
+      },
+    };
+
+    const toolCallStep = createToolCallStep({
+      tools,
+      messageList,
+      controller,
+      runId: 'static-approval-run-id',
+      streamState,
+    });
+
+    const executePromise = toolCallStep.execute(makeExecuteParams());
+
+    await new Promise(resolve => setImmediate(resolve));
+
+    expect(needsApprovalFn).toHaveBeenCalled();
+    expect(suspend).toHaveBeenCalled();
+    expect(tools['ctx-tool'].execute).not.toHaveBeenCalled();
+
+    await expect(Promise.race([executePromise, Promise.resolve('completed')])).resolves.toBe('completed');
+  });
+
+  it('should require approval when requireToolApproval is true and needsApprovalFn returns false', async () => {
+    const needsApprovalFn = vi.fn().mockReturnValue(false);
+    const tools = {
+      'ctx-tool': {
+        execute: vi.fn(),
+        requireApproval: false,
+        needsApprovalFn,
+      },
+    };
+
+    const toolCallStep = createToolCallStep({
+      tools,
+      messageList,
+      controller,
+      runId: 'global-approval-run-id',
+      streamState,
+    });
+    const requestContext = new RequestContext();
+    requestContext.set('__mastra_requireToolApproval', true);
+
+    const executePromise = toolCallStep.execute(makeExecuteParams({ requestContext }));
+
+    await new Promise(resolve => setImmediate(resolve));
+
+    expect(needsApprovalFn).toHaveBeenCalled();
+    expect(suspend).toHaveBeenCalled();
+    expect(tools['ctx-tool'].execute).not.toHaveBeenCalled();
+
+    await expect(Promise.race([executePromise, Promise.resolve('completed')])).resolves.toBe('completed');
   });
 });
 
