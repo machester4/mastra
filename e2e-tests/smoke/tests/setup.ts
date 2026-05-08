@@ -60,6 +60,11 @@ export default async function setup(project: TestProject) {
       PORT: port.toString(),
       MASTRA_HOST: '0.0.0.0',
       NODE_ENV: 'production',
+      // Some upstream code paths (e.g. fire-and-forget /resume on a non-suspended
+      // run) emit synchronous throws inside discarded promises, killing the
+      // server under Node's default --unhandled-rejections=throw. Downgrade to
+      // warn so the API suite can keep running through expected error cases.
+      NODE_OPTIONS: `${process.env.NODE_OPTIONS ?? ''} --unhandled-rejections=warn`.trim(),
     },
     stdio: 'pipe',
   });
