@@ -423,6 +423,7 @@ describe('createToolCallStep tool approval workflow', () => {
       }),
     );
 
+    expect(agentTool.execute).toHaveBeenCalledOnce();
     const [, toolOptions] = agentTool.execute.mock.calls[0]!;
     expect(toolOptions.resumeData).toBeUndefined();
     expect(assistantMessage.content.metadata.pendingToolApprovals).toBeUndefined();
